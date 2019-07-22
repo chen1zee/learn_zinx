@@ -2,6 +2,8 @@ package znet
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
+	"io"
 	"net"
 	"zee.com/work/learn_zinx/ziface"
 )
@@ -37,18 +39,37 @@ func (c *Connection) StartReader() {
 	defer fmt.Println(c.RemoteAddr().String(), " conn reader exit!")
 	defer c.Stop()
 	for {
-		// 读取我们最大的数据到 buf 中
-		buf := make([]byte, 512)
-		_, err := c.Conn.Read(buf)
-		if err != nil {
-			fmt.Println("接收数据err  ", err)
+		// 创建拆包 解包 对象
+		dp := NewDataPack()
+		// 读取客户端的 Msg head
+		headData := make([]byte, dp.GetHeadLen())
+		if _, err := io.ReadFull(c.GetTCPConnection(), headData); err != nil {
+			fmt.Println("read msg head error ", err)
 			c.ExitBuffChan <- true
 			continue
 		}
+		// 拆包， 得到 msgId dataLen 放到 msg中
+		msg, err := dp.Unpack(headData)
+		if err != nil {
+			fmt.Println("unpack error ", err)
+			c.ExitBuffChan <- true
+			continue
+		}
+		// 根据 dataLen 读取 data, 放在 msg.Data 中
+		var data []byte
+		if msg.GetDataLen() > 0 {
+			data = make([]byte, msg.GetDataLen())
+			if _, err := io.ReadFull(c.GetTCPConnection(), data); err != nil {
+				fmt.Println("read msg data error ", err)
+				c.ExitBuffChan <- true
+				continue
+			}
+		}
+		msg.SetData(data)
 		// 得到当前客户端请求的 Request 数据
 		req := Request{
 			conn: c,
-			data: buf,
+			msg:  msg,
 		}
 		// 从路由 Routers 中找到注册绑定Conn 的 对应 Handle
 		go func(request ziface.IRequest) {
@@ -102,4 +123,25 @@ func (c *Connection) GetConnID() uint32 {
 // 获取远程客户端地址信息
 func (c *Connection) RemoteAddr() net.Addr {
 	return c.Conn.RemoteAddr()
+}
+
+// 直接将 Message 数据 发送数据给 远程的 TCP客户端
+func (c *Connection) SendMsg(msgId uint32, data []byte) error {
+	if c.isClosed == true {
+		return errors.New("Connection closed when send msg")
+	}
+	// 将 data 封包 ，并且发送
+	dp := NewDataPack()
+	msg, err := dp.Pack(NewMsgPackage(msgId, data))
+	if err != nil {
+		fmt.Println("Pack error msg id = ", msgId)
+		return errors.New("Pack error msg")
+	}
+	// 写回客户端
+	if _, err := c.Conn.Write(msg); err != nil {
+		fmt.Println("Write msg id ", msgId, " error ")
+		c.ExitBuffChan <- true
+		return errors.New("conn Write error")
+	}
+	return nil
 }
