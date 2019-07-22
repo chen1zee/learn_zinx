@@ -2,7 +2,6 @@ package znet
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"net"
 	"time"
 	"zee.com/work/learn_zinx/ziface"
@@ -18,20 +17,17 @@ type Server struct {
 	IP string
 	// 服务绑定端口
 	Port int
-}
-
-// ============= 定义当前客户端链接的 handle api
-func CallBackToClient(conn *net.TCPConn, data []byte, cnt int) error {
-	// 回显业务
-	fmt.Println("[Conn Handle] CallBackToClient ... ")
-	if _, err := conn.Write(data[:cnt]); err != nil {
-		fmt.Println("write back buf err ", err)
-		return errors.New("放回客户端 处理函数 失败 CallBackToClient error \n")
-	}
-	return nil
+	// 当前Server 由用户绑定的回调 router，也就是 Server 注册的连接对应的处理业务
+	Router ziface.IRouter
 }
 
 // ============= 实现 ziface.IServer 里的全部 接口方法
+
+// 添加 路由函数 待完成
+func (s *Server) AddRouter(router ziface.IRouter) {
+	s.Router = router
+	fmt.Println("Add Router success! ")
+}
 
 // 开启网络服务
 func (s *Server) Start() {
@@ -48,6 +44,7 @@ func (s *Server) Start() {
 		listener, err := net.ListenTCP(s.IPVersion, addr)
 		if err != nil {
 			fmt.Println("listen", s.IPVersion, s.IP, ":", s.Port, " err ", err)
+			return
 		}
 		// 监听成功
 		fmt.Println("start Zinx server  ", s.Name, " success, now listening...")
@@ -65,7 +62,7 @@ func (s *Server) Start() {
 			// 3.2 TODO Server.Start 设置服务器最大连接控制， 如果超过最大连接， 则关闭 此新的连接
 			// 3.3 TODO Server.Start 处理该新连接请求的 业务方法， 此时应有 handler 和 conn 是绑定的
 
-			dealConn := NewConnection(conn, cid, CallBackToClient)
+			dealConn := NewConnection(conn, cid, s.Router)
 			cid++
 			// 3.4 启动当前连接的处理业务
 			go dealConn.Start()
@@ -95,7 +92,7 @@ func NewServer(name string) ziface.IServer {
 		IPVersion: "tcp4",
 		IP:        "0.0.0.0",
 		Port:      7777,
+		Router:    nil,
 	}
-
 	return s
 }

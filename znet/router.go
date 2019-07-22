@@ -14,5 +14,3 @@ func (br *BaseRouter) PreHandle(request ziface.IRequest) {}
 func (br *BaseRouter) Handle(request ziface.IRequest) {}
 
 func (br *BaseRouter) PostHandle(request ziface.IRequest) {}
-
-// TODO 3.3 Zinx-V0.3-集成简单路由功能
