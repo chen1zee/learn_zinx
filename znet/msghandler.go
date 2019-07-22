@@ -3,11 +3,14 @@ package znet
 import (
 	"fmt"
 	"strconv"
+	"zee.com/work/learn_zinx/utils"
 	"zee.com/work/learn_zinx/ziface"
 )
 
 type MsgHandle struct {
-	Apis map[uint32]ziface.IRouter // 存放 每个 MsgId 所对应的 处理方法的 map 属性
+	Apis           map[uint32]ziface.IRouter // 存放 每个 MsgId 所对应的 处理方法的 map 属性
+	WorkerPoolSize uint32                    // 业务工作Worker 池的数量
+	TaskQueue      []chan ziface.IRequest    // Worker 负责去任务的消息队列
 }
 
 func (mh *MsgHandle) DoMsgHandler(request ziface.IRequest) {
@@ -35,6 +38,9 @@ func (mh *MsgHandle) AddRouter(msgId uint32, router ziface.IRouter) {
 
 func NewMsgHandle() *MsgHandle {
 	return &MsgHandle{
-		Apis: make(map[uint32]ziface.IRouter),
+		Apis:           make(map[uint32]ziface.IRouter),
+		WorkerPoolSize: utils.GlobalObject.WorkerPoolSize,
+		TaskQueue:      make([]chan ziface.IRequest, utils.GlobalObject.WorkerPoolSize), // 一个Worker 对应一个 queue
 	}
+	// TODO WokerPoolSize :作为工作池的数量，因为TaskQ
 }
