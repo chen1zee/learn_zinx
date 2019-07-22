@@ -19,9 +19,23 @@ func (r *PingRouter) Handle(request ziface.IRequest) {
 	// 先读取 客户端的数据 ， 再会写 ping...ping...ping \n
 	fmt.Println("recv from client : msgId=", request.GetMsgID(), ", data=", string(request.GetData()))
 	// 回写数据
-	err := request.GetConnection().SendMsg(1, []byte("ping...ping...ping"))
+	err := request.GetConnection().SendMsg(0, []byte("ping...ping...ping"))
 	if err != nil {
 		fmt.Println("call back ping ping ping error")
+		fmt.Println(err)
+	}
+}
+
+type HelloZinxRouter struct {
+	znet.BaseRouter
+}
+
+func (r *HelloZinxRouter) Handle(request ziface.IRequest) {
+	fmt.Println("Call HelloZinxRouter Handle")
+	// 先读取客户端的数据， 再会写 ping ping ping
+	fmt.Println("recv from client : msgId=", request.GetMsgID(), ", data=", string(request.GetData()))
+	err := request.GetConnection().SendMsg(1, []byte("Hello Zinx Router V0.6"))
+	if err != nil {
 		fmt.Println(err)
 	}
 }
@@ -31,12 +45,21 @@ func main() {
 	go func() {
 		// 1 创建一个 server 句柄
 		s := znet.NewServer()
-		s.AddRouter(&PingRouter{}) // 添加路由
+		s.AddRouter(0, &PingRouter{}) // 添加路由
+		s.AddRouter(1, &HelloZinxRouter{})
 		// 2 开启服务
 		s.Serve()
 	}()
-	// 客户端
-	fmt.Println("Client Test ... start")
+	go client(0, []byte("Zinx V0.6 Client0 Test Message"))
+	go client(1, []byte("Zinx V0.6 Client1 Test Message"))
+	for {
+		time.Sleep(10 * time.Second)
+	}
+}
+
+// 客户端
+func client(id uint32, data []byte) {
+	fmt.Println("Client ", id, " Test ... start")
 	// 3秒之后发起测试请求， 给服务端 开启服务机会
 	time.Sleep(3 * time.Second)
 	conn, err := net.Dial("tcp", "127.0.0.1:7777")
@@ -47,7 +70,7 @@ func main() {
 	for {
 		// 发封包message消息
 		dp := znet.NewDataPack()
-		msg, err := dp.Pack(znet.NewMsgPackage(0, []byte("Zinx V0.5 Client Test Message")))
+		msg, err := dp.Pack(znet.NewMsgPackage(id, data))
 		if err != nil {
 			fmt.Println("client 封包失败")
 			continue
