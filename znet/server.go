@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"time"
+	"zee.com/work/learn_zinx/utils"
 	"zee.com/work/learn_zinx/ziface"
 )
 
@@ -31,7 +32,11 @@ func (s *Server) AddRouter(router ziface.IRouter) {
 
 // 开启网络服务
 func (s *Server) Start() {
-	fmt.Printf("[START] Server listener at IP: %s, Port %d, is starting \n", s.IP, s.Port)
+	fmt.Printf("[START] Server name: %s, listener at IP: %s, Port %d, is starting \n", s.Name, s.IP, s.Port)
+	fmt.Printf("[Zinx] Version: %s, MaxConn: %d, MaxPacketSize: %d \n",
+		utils.GlobalObject.Version,
+		utils.GlobalObject.MaxConn,
+		utils.GlobalObject.MaxPacketSize)
 	// 开启一个go 做服务端 Listener 业务
 	go func() {
 		// 1 获取一个TCP的Addr
@@ -86,12 +91,14 @@ func (s *Server) Serve() {
 }
 
 // 创建一个服务器句柄
-func NewServer(name string) ziface.IServer {
+func NewServer() ziface.IServer {
+	// 先初始化 全局配置文件
+	utils.GlobalObject.Reload()
 	s := &Server{
-		Name:      name,
+		Name:      utils.GlobalObject.Name, // 从全局参数获取
 		IPVersion: "tcp4",
-		IP:        "0.0.0.0",
-		Port:      7777,
+		IP:        utils.GlobalObject.Host,
+		Port:      utils.GlobalObject.TcpPort,
 		Router:    nil,
 	}
 	return s
