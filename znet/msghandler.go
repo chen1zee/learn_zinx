@@ -42,5 +42,4 @@ func NewMsgHandle() *MsgHandle {
 		WorkerPoolSize: utils.GlobalObject.WorkerPoolSize,
 		TaskQueue:      make([]chan ziface.IRequest, utils.GlobalObject.WorkerPoolSize), // 一个Worker 对应一个 queue
 	}
-	// TODO WokerPoolSize :作为工作池的数量，因为TaskQ
 }
