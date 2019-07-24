@@ -5,6 +5,7 @@ import (
 	"github.com/pkg/errors"
 	"io"
 	"net"
+	"zee.com/work/learn_zinx/utils"
 	"zee.com/work/learn_zinx/ziface"
 )
 
@@ -57,7 +58,7 @@ func (c *Connection) StartWriter() {
 	}
 }
 
-/** 处理conn 读取数据的 goroutine */
+/** 读消息Goroutine 用于从客户端中读取数据 */
 func (c *Connection) StartReader() {
 	fmt.Println("Reader goroutine is running")
 	defer fmt.Println(c.RemoteAddr().String(), " conn reader exit!")
@@ -95,8 +96,13 @@ func (c *Connection) StartReader() {
 			conn: c,
 			msg:  msg,
 		}
-		// 从绑定好的消息和对应的处理方法中 执行 对应的 Handle 方法
-		go c.MsgHandler.DoMsgHandler(&req)
+		if utils.GlobalObject.WorkerPoolSize > 0 {
+			// 已经启动工作池机制， 将消息交给Worker 处理
+			c.MsgHandler.SendMsgToTaskQueue(&req)
+		} else {
+			// 从绑定好的消息和对应的处理方法中 执行 对应的 Handle 方法
+			go c.MsgHandler.DoMsgHandler(&req)
+		}
 	}
 }
 
