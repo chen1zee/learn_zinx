@@ -205,4 +205,5 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 	// 写回客户端
 	c.msgChan <- msg // 将之前直接回写给 conn.Writer 的方法 改为 发送给 Channel 供 Writer 读取
 	return nil
+	// TODO 看至 9.4
 }
