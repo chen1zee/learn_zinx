@@ -12,4 +12,12 @@ type IServer interface {
 	AddRouter(msgId uint32, router IRouter)
 	// 得到链接管理
 	GetConnMgr() IConnManager
+	// 设置该 Server 的连接创建时Hook函数
+	SetOnConnStart(func(connection IConnection))
+	// 设置该 Server 连接断开时Hook函数
+	SetOnConnStop(func(connection IConnection))
+	// 调用连接OnConnStart Hook函数
+	CallOnConnStart(connection IConnection)
+	// 调用连接OnConnStop Hook函数
+	CallOnConnStop(connection IConnection)
 }

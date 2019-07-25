@@ -5,6 +5,7 @@ import (
 	"github.com/pkg/errors"
 	"io"
 	"net"
+	"sync"
 	"zee.com/work/learn_zinx/utils"
 	"zee.com/work/learn_zinx/ziface"
 )
@@ -26,23 +27,36 @@ type Connection struct {
 	msgChan chan []byte
 	// 有缓冲管道 用于 读 写 两个goroutine 之间的消息通信
 	msgBuffChan chan []byte // 定义 channel成员
+	// =============
+	// 连接属性
+	property map[string]interface{}
+	// 保护连接属性修改的锁
+	propertyLock sync.RWMutex
 }
 
-// 创建连接的方法
-func NewConnection(server ziface.IServer, conn *net.TCPConn, connID uint32, msgHandler ziface.IMsgHandle) *Connection {
-	c := &Connection{
-		TcpServer:    server, // 将隶属的server 传递进来
-		Conn:         conn,
-		ConnID:       connID,
-		isClosed:     false,
-		MsgHandler:   msgHandler,
-		ExitBuffChan: make(chan bool, 1),
-		msgChan:      make(chan []byte), // msgChan初始化
-		msgBuffChan:  make(chan []byte, utils.GlobalObject.MaxMsgChanLen),
+// 设置链接属性
+func (c *Connection) SetProperty(key string, value interface{}) {
+	c.propertyLock.Lock()
+	defer c.propertyLock.Unlock()
+	c.property[key] = value
+}
+
+// 获取链接属性
+func (c *Connection) GetProperty(key string) (interface{}, error) {
+	c.propertyLock.RLock()
+	defer c.propertyLock.RUnlock()
+	if value, ok := c.property[key]; ok {
+		return value, nil
+	} else {
+		return nil, errors.New("no property found")
 	}
-	// 将新创建的Conn 添加到链接管理中
-	c.TcpServer.GetConnMgr().Add(c) // 将当前新创建的连接添加到 ConnManager 中
-	return c
+}
+
+// 移除链接属性
+func (c *Connection) RemoveProperty(key string) {
+	c.propertyLock.Lock()
+	defer c.propertyLock.Unlock()
+	delete(c.property, key)
 }
 
 // 发送带缓冲信息
@@ -145,8 +159,10 @@ func (c *Connection) StartReader() {
 // 启动连接 让 当前连接开始工作
 func (c *Connection) Start() {
 	// 开启处理该连接读取到客户端数据之后的 请求业务
-	go c.StartReader()
-	go c.StartWriter()
+	go c.StartReader() // 开启用于从客户端读取数据流程的 Goroutine
+	go c.StartWriter() // 开启用于写回客户端数据流程的 Goroutine
+	// 按照用户传递进来的创建链接时需要处理的业务， 执行钩子方法
+	c.TcpServer.CallOnConnStart(c)
 	for {
 		select {
 		case <-c.ExitBuffChan:
@@ -164,6 +180,8 @@ func (c *Connection) Stop() {
 	}
 	fmt.Println("Conn Stop()... ConnID = ", c.ConnID)
 	c.isClosed = true
+	// 如果用户注册了该链接的关闭回调业务， name在此刻应该显示调用
+	c.TcpServer.CallOnConnStop(c)
 	// 关闭socket链接
 	_ = c.Conn.Close()
 	// 通知 从缓冲队列读取数据的业务 , 该链接已经关闭
@@ -205,5 +223,22 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 	// 写回客户端
 	c.msgChan <- msg // 将之前直接回写给 conn.Writer 的方法 改为 发送给 Channel 供 Writer 读取
 	return nil
-	// TODO 看至 9.4
+}
+
+// 创建连接的方法
+func NewConnection(server ziface.IServer, conn *net.TCPConn, connID uint32, msgHandler ziface.IMsgHandle) *Connection {
+	c := &Connection{
+		TcpServer:    server, // 将隶属的server 传递进来
+		Conn:         conn,
+		ConnID:       connID,
+		isClosed:     false,
+		MsgHandler:   msgHandler,
+		ExitBuffChan: make(chan bool, 1),
+		msgChan:      make(chan []byte), // msgChan初始化
+		msgBuffChan:  make(chan []byte, utils.GlobalObject.MaxMsgChanLen),
+		property:     make(map[string]interface{}), // 对链接属性 map初始化
+	}
+	// 将新创建的Conn 添加到链接管理中
+	c.TcpServer.GetConnMgr().Add(c) // 将当前新创建的连接添加到 ConnManager 中
+	return c
 }

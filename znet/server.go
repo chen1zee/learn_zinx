@@ -22,6 +22,38 @@ type Server struct {
 	msgHandler ziface.IMsgHandle
 	// 当前Server 的连接管理器
 	ConnMgr ziface.IConnManager
+	// ==================
+	// 新增两个hook函数原型
+	// 该Server 的连接创建时的Hook函数
+	OnConnStart func(conn ziface.IConnection)
+	// 该Server 连接断开时 Hook函数
+	OnConnStop func(conn ziface.IConnection)
+}
+
+// 设置该 Server 的连接创建Hook函数
+func (s *Server) SetOnConnStart(hookFunc func(connection ziface.IConnection)) {
+	s.OnConnStart = hookFunc
+}
+
+// 设置该 Server 的连接断开Hook函数
+func (s *Server) SetOnConnStop(hookFunc func(connection ziface.IConnection)) {
+	s.OnConnStop = hookFunc
+}
+
+// 调用连接OnConnStart Hook函数
+func (s *Server) CallOnConnStart(connection ziface.IConnection) {
+	if s.OnConnStart != nil {
+		fmt.Println("---> CallConStart ...")
+		s.OnConnStart(connection)
+	}
+}
+
+// 调用连接onConnStop Hook函数
+func (s *Server) CallOnConnStop(connection ziface.IConnection) {
+	if s.OnConnStop != nil {
+		fmt.Println("---> CallOnConnStop ...")
+		s.OnConnStop(connection)
+	}
 }
 
 // 得到链接管理
